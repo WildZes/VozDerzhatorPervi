@@ -55,6 +55,7 @@ colors_dict = {
 
 class HBoxLayoutExample(App):
     def build(self):
+        self.tmp = None
         layout = BoxLayout(padding=30)
         colors = [red, green, blue, purple]
 
@@ -62,12 +63,17 @@ class HBoxLayoutExample(App):
             btn = Button(text="Button #%s" % (i+1),
                          background_color=random.choice(colors)
                          )
-            btn.bind(on_press=self.on_press_button)
+            btn.bind(on_press=self.on_press_button, on_release=self.release_button)
             layout.add_widget(btn)
         return layout
 
     def on_press_button(self, instance):
-        print(colors_dict[matplotlib.colors.to_hex(instance.background_color)[1:].upper()])
+        self.tmp = instance.text
+        instance.text = colors_dict[matplotlib.colors.to_hex(instance.background_color)[1:].upper()]
+
+    def release_button(self, instance):
+        instance.text = self.tmp
+        self.tmp = None
 
 if __name__ == "__main__":
     app = HBoxLayoutExample()
