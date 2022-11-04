@@ -1,0 +1,22 @@
+#:import random random.random
+#:import WipeTransition kivy.uix.screenmanager.WipeTransition
+<MainScreen>:
+    btn:btn
+    transition: WipeTransition()
+    BoxLayout:
+        orientation: 'vertical'
+
+        Button:
+            id: btn
+            text: "ВОЗДЕРЖАНИЕ"
+            on_release: root.manager.current = 'vd'
+
+        Button:
+            id: btn
+            text: "вЫПООЛНЕНИЕ"
+            on_release: app.stop()
+
+        Button:
+            id: btn
+            text: "ПЛАНИРОВЩИК"
+            on_release: app.stop()
