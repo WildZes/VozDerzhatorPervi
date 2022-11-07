@@ -1,0 +1,62 @@
+#:import WipeTransition kivy.uix.screenmanager.WipeTransition
+<VDScreen>:
+    btn:btn
+    transition: WipeTransition()
+    BoxLayout:
+        orientation: 'vertical'
+
+        TextInput:
+            size_hint: (1, .2)
+            text: "ВВЕДИ ЦЕЛЬ ИЛИ ПОДРОБНОСТИ ПРОИСХОДЯЩЕГО ЗДЕСЬ"
+            on_touch_down: if self.collide_point(*args[1].pos): self.text = ""
+
+        GridLayout:
+            cols: 3
+            Button:
+                id: c_date
+                text: "Выбрать период"
+                on_release: root.select_date()
+
+            Button:
+                text: "Время напоминания"
+
+            Button:
+                text: "Напоминалки"
+
+        TextInput:
+            size_hint: (1, .2)
+            text: "ВЫБРАТЬ мотиВАШКУ"
+            on_touch_down: if self.collide_point(*args[1].pos): self.text = ""
+
+        GridLayout:
+            size_hint: (1, .2)
+            cols: 3
+            TextInput:
+                size_hint: (0.2, 1)
+
+            Spinner:
+                text: 'дн.'
+                values: 'сек.', 'мин.', 'ч.', 'дн.', 'нед.', 'у.е.'
+                on_text:
+                    print("The spinner {} has text {}".format(self, self.text))
+
+            Label:
+                id:entry
+                text: 'до ВАШКИ'
+                font_size:18
+                canvas.before:
+                    Color:
+                        rgba: .5, .5, .5, 1
+                    Rectangle:
+                        pos: self.pos
+                        size: self.size
+
+        Button:
+            id: btn
+            text: "ПУСК"
+            on_release: app.stop()
+
+        Button:
+            id: btn
+            text: "гл"
+            on_release: root.manager.current = 'main'
