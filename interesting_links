@@ -1,0 +1,5 @@
+https://superfastpython.com/asyncio-hello-world/
+https://habr.com/ru/company/kts/blog/598575/ #Пишем асинхронного Телеграм-бота
+https://github.com/eternnoir/pyTelegramBotAPI/blob/master/examples/asynchronous_telebot/timer_bot_async.py
+https://github.com/coder2020official/asynctelebot_template/blob/main/tgbot/handlers/admin.py #Really interesting template
+https://github.com/eternnoir/pyTelegramBotAPI/blob/master/examples/timer_bot.py
