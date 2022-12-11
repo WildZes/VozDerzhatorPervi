@@ -1,5 +1,5 @@
+import pickle
 import telebot
-from telebot import types
 import os
 from dotenv import load_dotenv
 from collections import defaultdict
@@ -16,20 +16,24 @@ user = dict(zip(keys, [None]*len(keys)))
 cur_user = None
 weekdays_torus = {'Mon': 'Пн.', 'Tue': 'Вт.', 'Wed': 'Ср.', 'Thu': 'Чт.', 'Fri': 'Пт.', 'Sat': 'Сб.', 'Sun': 'Вс.'}
 weekdays_toeng = {y: x for x, y in weekdays_torus.items()}
+weekdays_coeff = {'Пн.': 1, 'Вт.': 2, 'Ср.': 3, 'Чт.': 4, 'Пт.': 5, 'Сб.': 6, 'Вс.': 7}
 time_check = '00:0000:3001:0001:3002:0002:3003:0003:3004:0004:3005:0005:3006:0006:3007:0007:3008:0008:3009:0009:30' \
              '10:0010:3011:0011:3012:0012:3013:0013:3014:0014:3015:0015:3016:0016:3017:0017:3018:0018:3019:0019:30' \
              '20:0020:3021:0021:3022:0022:3023:0023:30'
 cur_msg = None
-inteval = []
+interval = []
 
 @bot.message_handler(func=lambda msg: msg.text is not None and '/start' in msg.text)
 def send_welcome(msg):
     global cur_user
+    global users
+    try:
+        with open('telebot_data.pkl', 'rb') as f:
+            users = pickle.load(f)
+    except OSError:
+        print('No data file.')
     cur_user = msg.from_user.id
     keyboard = t.yes_no('Закончить.', 'old', 'new', 'stop_bot')
-    # keyboard.add(types.InlineKeyboardButton('Да', callback_data='old'),
-    #              types.InlineKeyboardButton('Нет', callback_data='new'))
-    # keyboard.add(types.InlineKeyboardButton('Пора остановиться', callback_data='stop_bot'))
     greet = 'Бла...бла...бла\nМы знакомы?'
     bot.send_message(msg.chat.id, greet, reply_markup=keyboard)
 
@@ -38,24 +42,49 @@ def send_welcome(msg):
 def query_processing(call):
     global user
     global cur_user
-    if call.data == 'new':
-        user = dict.fromkeys(user, None)
-        nxt = bot.send_message(call.message.chat.id, 'Как звать?')
-        bot.register_next_step_handler(nxt, get_name_ask_goal)
+    global users
+    if call.data == 'new' or call.data == 'name':
+        if call.from_user.id in users and call.data != 'name':
+            bot.delete_message(call.message.chat.id, call.message.id)
+            keyboard = t.yes_no('Закончить.', 'old', 'new', 'stop_bot')
+            nxt = f'Обнаружил в базе пользователя с именем {users[cur_user]["name"]}.\nМы общались раньше?'
+            bot.send_message(call.message.chat.id, nxt, reply_markup=keyboard)
+        else:
+            user = dict.fromkeys(user, None)
+            nxt = bot.send_message(call.message.chat.id, 'Как звать?')
+            bot.register_next_step_handler(nxt, get_name_ask_goal)
     elif call.data == 'old':
-        #Implemented as forcing question about reminder to ease bot debugging
-        keyboard = t.yes_no('Только начали, а мне уже скучно....', 'remind_yes', 'remind_no', 'stop_bot')
-        # keyboard.add(types.InlineKeyboardButton('Да', callback_data='remind_yes'),
-        #              types.InlineKeyboardButton('Нет', callback_data='remind_no'))
-        # keyboard.add(types.InlineKeyboardButton('Пора остановиться', callback_data='stop_bot'))
-        nxt = 'Напоминания потребуются?'
-        bot.send_message(call.message.chat.id, nxt, reply_markup=keyboard)
+        if call.from_user.id not in users:
+            bot.delete_message(call.message.chat.id, call.message.id)
+            keyboard = t.yes_no('Закончить.', 'old', 'new', 'stop_bot')
+            nxt = 'Данных пользователя нет в базе.\nМы точно знакомы?'
+            bot.send_message(call.message.chat.id, nxt, reply_markup=keyboard)
+        else:
+            keyboard = t.changes()
+            nxt = f'Какую информацию надо заменить?\n\nСейчас в работе:\nИмя: {users[cur_user]["name"]}\n' \
+                  f'Цель: {users[cur_user]["goal"]}\nДата завершения: {users[cur_user]["period"]}\n' \
+                  f'Напоминания:'
+            if users[cur_user]['interval']:
+                # for i, v in enumerate(users[cur_user]['interval']):
+                for i, v in enumerate(sorted(list(users[cur_user]['interval']), key=lambda tup: (weekdays_coeff[tup[0]], tup[1]))):
+                    nxt += f'\n    {i + 1}: {v[0]} {v[1]}'
+            else:
+                nxt += '\n не установлены.'
+            if users[cur_user]['reward']:
+                nxt += f'\nНаграда: {users[cur_user]["reward"]}'
+            else:
+                nxt += '\nНаграда не установлена.'
+            bot.send_message(call.message.chat.id, nxt, reply_markup=keyboard)
     elif call.data == 'stop_bot':
         txt = 'По Щучьему веленью, по кодову хотенью обнуляю сессию...'
         default_statement(call.message, txt)
-    elif call.data == 'goal':
-        nxt = bot.send_message(call.message.chat.id, 'Запоминаю цель...')
-        bot.register_next_step_handler(nxt, get_goal_ask_period)
+    elif call.data == 'goal' or call.data == 'period':
+        if call.data != 'period':
+            nxt = bot.send_message(call.message.chat.id, 'Запоминаю цель...')
+            bot.register_next_step_handler(nxt, get_goal_ask_period, call)
+        else:
+            nxt = call.message
+            get_goal_ask_period(nxt, call)
     elif call.data == 'info':
         txt = 'Крепко держимся, кто стоит лучше сесть...\nЗа основу взята аббревиатура S.M.A.R.T.\n' + \
               'К.И.С.К.А.\nКачество для качественного описания цели\nИзмеримость для оценки цели\n' + \
@@ -63,7 +92,7 @@ def query_processing(call):
               'Административность для органичения времени выполнения и прочих административных характеристик\n\n' + \
               'Надеюсь доходчиво, а теперь запоминаю цель...'
         nxt = bot.send_message(call.message.chat.id, txt)
-        bot.register_next_step_handler(nxt, get_goal_ask_period)
+        bot.register_next_step_handler(nxt, get_goal_ask_period, call)
     elif call.data == '1' or call.data == '7' or call.data == '30' or call.data == '180' or call.data == '365':
         get_period(call.message, call)
     elif call.data == 'date':
@@ -74,39 +103,76 @@ def query_processing(call):
         get_interval(call)
     elif call.data == 'reward_yes' or call.data == 'reward_no':
         get_reward(call)
+    elif call.data == 'delete_user':
+        gaining_goal(call)
+    elif call.data == 'del_goal':
+        nxt = call
+        nxt.message.text = 'Движение к цели с удаленной целью.'
+        get_goal_ask_period(nxt.message, call)
+    elif call.data == 'del_name':
+        nxt = call
+        nxt.message.text = 'Теперь мне имя неизвестно, но мессенджер все равно знает гораздо больше...'
+        get_name_ask_goal(nxt.message)
+    elif call.data == 'del_period':
+        keyboard = t.yes_no('Закругляйся...', 'old', 'reward_no', 'stop_bot')
+        nxt = 'Удаление даты не предусмотрено. Частое нажатие этой кнопки может привести к созданию дополнительного ' \
+              'функционала.\nДругие изменения актуальны?'
+        bot.send_message(call.message.chat.id, nxt, reply_markup=keyboard)
+    elif call.data == 'reward':
+        nxt = bot.send_message(call.message.chat.id, 'Запоминаю изменения награды...')
+        bot.register_next_step_handler(nxt, get_smth, call)
+    elif call.data == 'del_reward':
+        nxt = call.message
+        nxt.text = 'Героям не требуются никакие награды...'
+        get_smth(nxt, call)
     else:
         bot.send_message(call.message.chat.id, 'Что-то не так...Я не знаю что делать...')
 
 
 def get_name_ask_goal(msg):
     global user
-    user['name'] = msg.text
-    keyboard = t.dual_choice('Цель', 'Инфо', 'goal', 'info')
-    nxt = 'Цель (К.И.С.К.А.)?'
-    bot.send_message(msg.chat.id, nxt, reply_markup=keyboard)
-
-
-def get_goal_ask_period(msg):
-    global cur_user
-    global user
-    if cur_user == msg.from_user.id:
-        user['goal'] = msg.text
-        keyboard = t.period()
-        nxt = 'За сколько дней цель будет выполнена?'
+    if users[cur_user]:
+        users[cur_user]['name'] = msg.text
+        keyboard = t.yes_no('Стоп.', 'old', 'reward_no', 'stop_bot')
+        nxt = 'Еще замены будут?'
         bot.send_message(msg.chat.id, nxt, reply_markup=keyboard)
     else:
-        txt = 'Я запутался в пользователях.\nОбнуляю сессию...'
-        default_statement(msg, txt)
+        user['name'] = msg.text
+        keyboard = t.dual_choice('Цель', 'Инфо', 'goal', 'info')
+        nxt = 'Цель (К.И.С.К.А.)?'
+        bot.send_message(msg.chat.id, nxt, reply_markup=keyboard)
+
+
+def get_goal_ask_period(msg, call):
+    global cur_user
+    global user
+    global users
+    if cur_user == call.from_user.id:
+        if users[cur_user] and call.data != 'period':
+            users[cur_user]['goal'] = msg.text
+            keyboard = t.yes_no('Закругляйся...', 'old', 'reward_no', 'stop_bot')
+            nxt = 'Еще замены будут?'
+            bot.send_message(msg.chat.id, nxt, reply_markup=keyboard)
+        else:
+            user['goal'] = msg.text
+            keyboard = t.period()
+            nxt = 'За сколько дней цель будет выполнена?'
+            bot.send_message(msg.chat.id, nxt, reply_markup=keyboard)
+    else:
+        nxt = 'В ходе работы с целью я запутался в пользователях.\nОбнуляю сессию...'
+        default_statement(msg, nxt)
 
 
 def default_statement(msg, txt):
     global user
     global cur_user
     global cur_msg
-    bot.send_message(msg.chat.id, txt + '\nДля новой попытки /start')
+    global interval
+    bot.send_message(msg.chat.id, txt + '\n\nДля продолжения /start')
     user = dict(zip(keys, [None] * len(keys)))
     cur_user = None
     cur_msg = None
+    interval = []
 
 
 def get_period(msg, call):
@@ -118,9 +184,15 @@ def get_period(msg, call):
                 user['period'] = datetime.strptime(msg.text, '%d.%m.%Y').date()
             else:
                 user['period'] = date.today() + timedelta(days=int(call.data))
-            keyboard = t.yes_no('Пора остановиться.', 'remind_yes', 'remind_no', 'stop_bot')
-            nxt = 'Напоминания потребуются?'
-            bot.send_message(msg.chat.id, nxt, reply_markup=keyboard)
+            if users[cur_user]:
+                users[cur_user]['period'] = user['period']
+                keyboard = t.yes_no('Хватит, а то никогда не закончим...', 'old', 'reward_no', 'stop_bot')
+                nxt = 'Еще замены будут?'
+                bot.send_message(msg.chat.id, nxt, reply_markup=keyboard)
+            else:
+                keyboard = t.yes_no('Пора остановиться.', 'remind_yes', 'remind_no', 'stop_bot')
+                nxt = 'Напоминания потребуются?'
+                bot.send_message(msg.chat.id, nxt, reply_markup=keyboard)
         except BaseException as exception:
             # print(call.message.text)
             # print(call.data)
@@ -140,13 +212,25 @@ def get_interval(call):
     if cur_user != call.from_user.id:
         return default_statement(call.message, 'Я запутался в пользователях.\nОбнуляю сессию...')
     if call.data == 'remind_no':
-        txt = 'Движение к цели без напоминаний.'
-        keyboard = t.yes_no('Все...в конец запутался....тормози!', 'reward_yes', 'reward_no', 'stop_bot')
-        bot.send_message(call.message.chat.id, txt, reply_markup=keyboard)
+        if users[cur_user]:
+            users[cur_user]['interval'] = set()
+            keyboard = t.yes_no('Стоп интервальные и любые изменения...', 'old', 'reward_no', 'stop_bot')
+            nxt = 'Еще замены будут?'
+            bot.send_message(call.message.chat.id, nxt, reply_markup=keyboard)
+        else:
+            txt = 'Движение к цели без напоминаний.'
+            keyboard = t.yes_no('Все...в конец запутался....тормози!', 'reward_yes', 'reward_no', 'stop_bot')
+            bot.send_message(call.message.chat.id, txt, reply_markup=keyboard)
     elif call.data == 'interval_done':
-        keyboard = t.yes_no('Слишком долго, пожно прекратить...', 'reward_yes', 'reward_no', 'stop_bot')
-        nxt = 'Награда победителю (в случае наличия напоминаний, награждение происходит при напоминании)?'
-        bot.send_message(call.message.chat.id, nxt, reply_markup=keyboard)
+        if users[cur_user]:
+            users[cur_user]['interval'].update(user['interval'])
+            keyboard = t.yes_no('Стоп интервальные и любые изменения...', 'old', 'reward_no', 'stop_bot')
+            nxt = 'Еще замены будут?'
+            bot.send_message(call.message.chat.id, nxt, reply_markup=keyboard)
+        else:
+            keyboard = t.yes_no('Слишком долго, можно прекратить...', 'reward_yes', 'reward_no', 'stop_bot')
+            nxt = 'Награда победителю (в случае наличия напоминаний, награждение происходит при напоминании)?'
+            bot.send_message(call.message.chat.id, nxt, reply_markup=keyboard)
     elif call.data == 'remind_yes':
         interval = []
         user['interval'] = set()
@@ -155,18 +239,15 @@ def get_interval(call):
         bot.send_message(call.message.chat.id, nxt, reply_markup=keyboard)
     elif call.data in weekdays_torus:
         interval.append(weekdays_torus[call.data])
-        print(interval)
         bot.delete_message(call.message.chat.id, call.message.id)
         keyboard = t.times()
         nxt = 'Настройка напоминания.\nВыберите время для напоминания (' + weekdays_torus[call.data] + ')'
         bot.send_message(call.message.chat.id, nxt, reply_markup=keyboard)
     elif call.data in time_check:
-        print(interval)
         interval.append(call.data)
         if len(interval) == 2:
             user['interval'].add(tuple(interval))
             interval = []
-        print(interval)
         bot.delete_message(call.message.chat.id, call.message.id)
         keyboard = t.weekdays()
         nxt = 'Настройка напоминания.\nВыберите дни для напоминания.'
@@ -181,10 +262,9 @@ def get_smth(msg, call):
     cur_msg = msg
     if call.data == 'interval_done':
         get_interval(call)
-    elif call.data == 'reward_yes':
+    elif call.data == 'reward_yes' or call.data == 'reward' or call.data == 'del_reward':
         get_reward(call)
     else:
-        print(cur_msg)
         txt = 'Нет счастье в ветвлении ветвления...\nОбнуляю сессию...'
         default_statement(call.message, txt)
 
@@ -197,6 +277,10 @@ def get_reward(call):
         if cur_msg is None:
             nxt = bot.send_message(call.message.chat.id, 'Запоминаю награду...')
             bot.register_next_step_handler(nxt, get_smth, call)
+        elif users[cur_user]:
+            users[cur_user]['reward'] = cur_msg.text
+            cur_msg = None
+            gaining_goal(call)
         else:
             user['reward'] = cur_msg.text
             cur_msg = None
@@ -207,41 +291,60 @@ def gaining_goal(call):
     global users
     global cur_user
     global user
-    txt = ''
+    nxt = ''
     if cur_user == call.from_user.id:
-        users[cur_user] = user
+        if call.data == 'delete_user':
+            del users[cur_user]
+            nxt = 'Все данные о пользователе удалены...'
+        elif not users[cur_user]:
+            users[cur_user] = user
+        if not nxt:
+            nxt = f'Сейчас в работе:\nИмя: {users[cur_user]["name"]}\n' \
+                  f'Цель: {users[cur_user]["goal"]}\nДата завершения: {users[cur_user]["period"]}\n' \
+                  f'Напоминания:'
+            if users[cur_user]['interval']:
+                schedule.clear(call.message.chat.id)
+                # for i, v in enumerate(users[cur_user]['interval']):
+                for i, v in enumerate(sorted(list(users[cur_user]['interval']), key=lambda tup: (weekdays_coeff[tup[0]], tup[1]))):
+                    if v[0] == 'Пн.':
+                        schedule.every().monday.at(v[1]).do(beep, call.message.chat.id).tag(call.message.chat.id)
+                        nxt += f'\n    {i+1}: {v[0]} {v[1]}'
+                    if v[0] == 'Вт.':
+                        schedule.every().tuesday.at(v[1]).do(beep, call.message.chat.id).tag(call.message.chat.id)
+                        nxt += f'\n    {i+1}: {v[0]} {v[1]}'
+                    if v[0] == 'Ср.':
+                        schedule.every().wednesday.at(v[1]).do(beep, call.message.chat.id).tag(call.message.chat.id)
+                        nxt += f'\n    {i+1}: {v[0]} {v[1]}'
+                    if v[0] == 'Чт.':
+                        schedule.every().thursday.at(v[1]).do(beep, call.message.chat.id).tag(call.message.chat.id)
+                        nxt += f'\n    {i+1}: {v[0]} {v[1]}'
+                    if v[0] == 'Пт.':
+                        schedule.every().friday.at(v[1]).do(beep, call.message.chat.id).tag(call.message.chat.id)
+                        nxt += f'\n    {i+1}: {v[0]} {v[1]}'
+                    if v[0] == 'Сб.':
+                        schedule.every().saturday.at(v[1]).do(beep, call.message.chat.id).tag(call.message.chat.id)
+                        nxt += f'\n    {i+1}: {v[0]} {v[1]}'
+                    if v[0] == 'Вс.':
+                        schedule.every().sunday.at(v[1]).do(beep, call.message.chat.id).tag(call.message.chat.id)
+                        nxt += f'\n    {i+1}: {v[0]} {v[1]}'
+                print(schedule.get_jobs())
+            else:
+                nxt += ' не установлены.'
+            if users[cur_user]['reward']:
+                nxt += f'\nНаграда: {users[cur_user]["reward"]}'
+            else:
+                nxt += '\nНаграда не установлена.'
         print(users)
-        if users[cur_user]['interval']:
-            for i, v in enumerate(users[cur_user]['interval']):
-                print(v[0], v[1])
-                if v[0] == 'Пн.':
-                    schedule.every().monday.at(v[1]).do(beep, call.message.chat.id).tag(call.message.chat.id)
-                    txt += f'Напоминание {i+1}: {v[0]} {v[1]}\n'
-                if v[0] == 'Вт.':
-                    schedule.every().tuesday.at(v[1]).do(beep, call.message.chat.id).tag(call.message.chat.id)
-                    txt += f'Напоминание {i+1}: {v[0]} {v[1]}\n'
-                if v[0] == 'Ср.':
-                    schedule.every().wednesday.at(v[1]).do(beep, call.message.chat.id).tag(call.message.chat.id)
-                    txt += f'Напоминание {i+1}: {v[0]} {v[1]}\n'
-                if v[0] == 'Чт.':
-                    schedule.every().thursday.at(v[1]).do(beep, call.message.chat.id).tag(call.message.chat.id)
-                    txt += f'Напоминание {i+1}: {v[0]} {v[1]}\n'
-                if v[0] == 'Пт.':
-                    schedule.every().friday.at(v[1]).do(beep, call.message.chat.id).tag(call.message.chat.id)
-                    txt += f'Напоминание {i+1}: {v[0]} {v[1]}\n'
-                if v[0] == 'Сб.':
-                    schedule.every().saturday.at(v[1]).do(beep, call.message.chat.id).tag(call.message.chat.id)
-                    txt += f'Напоминание {i+1}: {v[0]} {v[1]}\n'
-                if v[0] == 'Вс.':
-                    schedule.every().sunday.at(v[1]).do(beep, call.message.chat.id).tag(call.message.chat.id)
-                    txt += f'Напоминание {i+1}: {v[0]} {v[1]}\n'
-            print(schedule.get_jobs())
-        else:
-            txt = 'Записана необходимая информация для достижения цели. Это промежуточный результат и работа будетт продолжена...'
-        default_statement(call.message, txt)
+        with open('telebot_data.pkl', 'wb') as f:
+            pickle.dump(users, f)
+        default_statement(call.message, nxt)
     else:
-        txt = 'Я запутался в пользователях.\nОбнуляю сессию...'
-        default_statement(call.message, txt)
+        nxt = 'Я запутался в пользователях.\nОбнуляю сессию...'
+        default_statement(call.message, nxt)
+
+
+def make_changes(call):
+    pass
 
 
 def beep(chat_id, txt='Beep!') -> None:

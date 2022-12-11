@@ -36,19 +36,8 @@ def weekdays():
     keyboard.add(types.InlineKeyboardButton('Закончить настройку.', callback_data='interval_done'))
     return keyboard
 
-# def times():
-#     keyboard = types.InlineKeyboardMarkup()
-#     keyboard.add(types.InlineKeyboardButton('Пн.', callback_data='Mon'),
-#                  types.InlineKeyboardButton('Вт.', callback_data='Tue'),
-#                  types.InlineKeyboardButton('Ср.', callback_data='Wed'),
-#                  types.InlineKeyboardButton('Чт.', callback_data='Thu'),
-#                  types.InlineKeyboardButton('Пт.', callback_data='Fri'),
-#                  types.InlineKeyboardButton('Cб.', callback_data='Sat'),
-#                  types.InlineKeyboardButton('Вс.', callback_data='Sun'))
-#     keyboard.add(types.InlineKeyboardButton('Закончить настройку.', callback_data='interval_done'))
-#     return keyboard
 
-def times(call=None): #Whanted to use call as chat follower, but maybe it is useless
+def times():
     buttons = [
         [
             Button('00:00', callback_data='00:00'),
@@ -116,4 +105,20 @@ def times(call=None): #Whanted to use call as chat follower, but maybe it is use
         ],
     ]
     keyboard = types.InlineKeyboardMarkup(buttons)
+    return keyboard
+
+
+def changes():
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.add(types.InlineKeyboardButton('Имя', callback_data='name'),
+                 types.InlineKeyboardButton('Стереть', callback_data='del_name'),)
+    keyboard.add(types.InlineKeyboardButton('Цель', callback_data='goal'),
+                 types.InlineKeyboardButton('Стереть', callback_data='del_goal'),)
+    keyboard.add(types.InlineKeyboardButton('Дату окончания', callback_data='period'),
+                 types.InlineKeyboardButton('Стереть', callback_data='del_period'),)
+    keyboard.add(types.InlineKeyboardButton('Напоминания', callback_data='remind_yes'),
+                 types.InlineKeyboardButton('Стереть', callback_data='remind_no'),)
+    keyboard.add(types.InlineKeyboardButton('Награда', callback_data='reward'),
+                 types.InlineKeyboardButton('Стереть', callback_data='del_reward'),)
+    keyboard.add(types.InlineKeyboardButton('Стереть ВСЕ.', callback_data='delete_user'))
     return keyboard
