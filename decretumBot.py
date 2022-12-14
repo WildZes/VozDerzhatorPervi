@@ -9,7 +9,7 @@ import tables as t
 
 
 load_dotenv(".env")
-bot = telebot.TeleBot(os.getenv('token2'))
+bot = telebot.TeleBot(os.getenv('token3'))
 users = defaultdict(dict)
 keys = ['name', 'goal', 'period', 'interval', 'reward']
 user = dict(zip(keys, [None]*len(keys)))
@@ -34,8 +34,11 @@ def send_welcome(msg):
         print('No data file.')
     cur_user = msg.from_user.id
     keyboard = t.yes_no('Закончить.', 'old', 'new', 'stop_bot')
-    greet = 'Бла...бла...бла\nМы знакомы?'
-    bot.send_message(msg.chat.id, greet, reply_markup=keyboard)
+    greet = 'Привет, я Декректум, бот\-напоминатель\. Создан для достижения одной важной цели, но был выпущен на волю для ' \
+            'отправки напоминаний всем желающим\. Сейчас я умею запоминать только одну цель и отправлять по ней ' \
+            'неограниченное количество напоминаний\.\nДополнительную информацию можно найти на [канале]' \
+            '(https://t.me/zhiznKrasa)\n\nТеперь к делу\. Мы знакомы?'
+    bot.send_message(msg.chat.id, greet, reply_markup=keyboard, parse_mode='MarkdownV2', disable_web_page_preview=True)
 
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -61,11 +64,10 @@ def query_processing(call):
             bot.send_message(call.message.chat.id, nxt, reply_markup=keyboard)
         else:
             keyboard = t.changes()
-            nxt = f'Какую информацию надо заменить?\n\nСейчас в работе:\nИмя: {users[cur_user]["name"]}\n' \
+            nxt = f'Что будем менять?\n\nСейчас в работе:\nИмя: {users[cur_user]["name"]}\n' \
                   f'Цель: {users[cur_user]["goal"]}\nДата завершения: {users[cur_user]["period"]}\n' \
                   f'Напоминания:'
             if users[cur_user]['interval']:
-                # for i, v in enumerate(users[cur_user]['interval']):
                 for i, v in enumerate(sorted(list(users[cur_user]['interval']), key=lambda tup: (weekdays_coeff[tup[0]], tup[1]))):
                     nxt += f'\n    {i + 1}: {v[0]} {v[1]}'
             else:
@@ -80,17 +82,17 @@ def query_processing(call):
         default_statement(call.message, txt)
     elif call.data == 'goal' or call.data == 'period':
         if call.data != 'period':
-            nxt = bot.send_message(call.message.chat.id, 'Запоминаю цель...')
+            nxt = bot.send_message(call.message.chat.id, 'Надо указать цель, а я ее запомню.')
             bot.register_next_step_handler(nxt, get_goal_ask_period, call)
         else:
             nxt = call.message
             get_goal_ask_period(nxt, call)
     elif call.data == 'info':
-        txt = 'Крепко держимся, кто стоит лучше сесть...\nЗа основу взята аббревиатура S.M.A.R.T.\n' + \
+        txt = 'Крепко держимся, кто стоит лучше сесть...\nЗа основу ЦЕЛЕполагания взята аббревиатура S.M.A.R.T.\n' + \
               'К.И.С.К.А.\nКачество для качественного описания цели\nИзмеримость для оценки цели\n' + \
               'Совместимость для определения исполнителей\nКонструктивность для определения имещихся ресурсов\n' + \
               'Административность для органичения времени выполнения и прочих административных характеристик\n\n' + \
-              'Надеюсь доходчиво, а теперь запоминаю цель...'
+              'Надеюсь доходчиво, а теперь нужно написать цель...'
         nxt = bot.send_message(call.message.chat.id, txt)
         bot.register_next_step_handler(nxt, get_goal_ask_period, call)
     elif call.data == '1' or call.data == '7' or call.data == '30' or call.data == '180' or call.data == '365':
@@ -111,7 +113,7 @@ def query_processing(call):
         get_goal_ask_period(nxt.message, call)
     elif call.data == 'del_name':
         nxt = call
-        nxt.message.text = 'Теперь мне имя неизвестно, но мессенджер все равно знает гораздо больше...'
+        nxt.message.text = 'Теперь мне имя неизвестно, но Телеграм все равно знает гораздо больше...'
         get_name_ask_goal(nxt.message)
     elif call.data == 'del_period':
         keyboard = t.yes_no('Закругляйся...', 'old', 'reward_no', 'stop_bot')
