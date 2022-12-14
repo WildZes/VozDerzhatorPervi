@@ -35,9 +35,9 @@ def send_welcome(msg):
     cur_user = msg.from_user.id
     keyboard = t.yes_no('Закончить.', 'old', 'new', 'stop_bot')
     greet = 'Привет, я Декректум, бот\-напоминатель\. Создан для достижения одной важной цели, но был выпущен на волю для ' \
-            'отправки напоминаний всем желающим\. Сейчас я умею запоминать только одну цель и отправлять по ней ' \
-            'неограниченное количество напоминаний\.\nДополнительную информацию можно найти на [канале]' \
-            '(https://t.me/zhiznKrasa)\n\nТеперь к делу\. Мы знакомы?'
+            'отправки напоминаний всем желающим\. Сейчас я умею запоминать текст напоминания отправлять этот текст в ' \
+            'установленное время и создавать неограниченное количество напоминаний\.\nДополнительную информацию можно ' \
+            'найти на [канале](https://t.me/zhiznKrasa)\n\nТеперь к делу\. Мы знакомы?'
     bot.send_message(msg.chat.id, greet, reply_markup=keyboard, parse_mode='MarkdownV2', disable_web_page_preview=True)
 
 
@@ -141,7 +141,7 @@ def get_name_ask_goal(msg):
     else:
         user['name'] = msg.text
         keyboard = t.dual_choice('Цель', 'Инфо', 'goal', 'info')
-        nxt = 'Цель (К.И.С.К.А.)?'
+        nxt = 'Нужно ввести текст напоминания.'
         bot.send_message(msg.chat.id, nxt, reply_markup=keyboard)
 
 

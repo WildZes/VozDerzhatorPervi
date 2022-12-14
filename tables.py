@@ -122,3 +122,19 @@ def changes():
                  types.InlineKeyboardButton('Стереть', callback_data='del_reward'),)
     keyboard.add(types.InlineKeyboardButton('Стереть ВСЕ.', callback_data='delete_user'))
     return keyboard
+
+
+def remind_changes(from_user, user_id, coeff):
+    remind_buttons = set()
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.add(types.InlineKeyboardButton('Имя', callback_data='name'),
+                 types.InlineKeyboardButton('Стереть', callback_data='del_name'),)
+    for v in sorted(list(from_user[user_id]['interval']), key=lambda tup: (coeff[tup[1]], tup[2])):
+        keyboard.add(types.InlineKeyboardButton(f'{v[0]} - {v[1]} {v[2]}', callback_data=f'{v[0]},{v[1]},{v[2]}'))
+        remind_buttons.add(v[0])
+    for v in sorted(list(remind_buttons)):
+        keyboard.add(types.InlineKeyboardButton(f'Добавить напоминание к "{v}"', callback_data=v))
+    keyboard.add(types.InlineKeyboardButton('Добавить новое напоминание', callback_data='goal'))
+    keyboard.add(types.InlineKeyboardButton('Посмотреть текущие напоминания', callback_data ='interval_done'))
+    keyboard.add(types.InlineKeyboardButton('Стереть ВСЕ', callback_data='delete_user'))
+    return keyboard
