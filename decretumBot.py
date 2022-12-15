@@ -3,16 +3,14 @@ import telebot
 import os
 from dotenv import load_dotenv
 from collections import defaultdict
-from datetime import datetime, date, timedelta
 import time, threading, schedule
 import tables as t
 
 
 load_dotenv(".env")
-bot = telebot.TeleBot(os.getenv('token2'))
+bot = telebot.TeleBot(os.getenv('token3'))
 users = defaultdict(dict)
 keys = ['name', 'interval']
-user = dict(zip(keys, [None]*len(keys)))
 cur_user = None
 weekdays_torus = {'Mon': 'Пн.', 'Tue': 'Вт.', 'Wed': 'Ср.', 'Thu': 'Чт.', 'Fri': 'Пт.', 'Sat': 'Сб.', 'Sun': 'Вс.'}
 weekdays_toeng = {y: x for x, y in weekdays_torus.items()}
@@ -27,14 +25,12 @@ interval = []
 def send_welcome(msg):
     global cur_user
     global users
-    global user
+    cur_user = msg.from_user.id
     try:
         with open('telebot_data.pkl', 'rb') as f:
             users = pickle.load(f)
-    except OSError:
+    except:
         print('No data file.')
-    user = dict.fromkeys(user, None)
-    cur_user = msg.from_user.id
     keyboard = t.yes_no('Закончить.', 'old', 'new', 'stop_bot')
     greet = 'Привет, я Декректум, бот\-напоминатель\. Создан для достижения одной важной цели, но был выпущен на волю для ' \
             'отправки напоминаний всем желающим\. Сейчас я умею запоминать текст напоминания отправлять этот текст в ' \
@@ -45,12 +41,11 @@ def send_welcome(msg):
 
 @bot.callback_query_handler(func=lambda call: True)
 def query_processing(call):
-    global user
     global cur_user
     global users
     global interval
     if call.data == 'new' or call.data == 'name' or call.data == 'goal':
-        if (call.data == 'new' or call.data == 'name') and not users[cur_user]:
+        if not users[cur_user] and call.data == 'new':
             nxt = bot.send_message(call.message.chat.id, 'Как звать?')
             bot.register_next_step_handler(nxt, get_name_ask_goal, call)
         elif users[cur_user]['name'] and call.data == 'new':
@@ -59,7 +54,9 @@ def query_processing(call):
             nxt = f'Обнаружил в базе пользователя с именем {users[cur_user]["name"]}.\nМожно продолжить давить "Нет", но ' \
                   f'это не будет весело...потому что беседа будет замкнута...'
             bot.send_message(call.message.chat.id, nxt, reply_markup=keyboard)
-        # elif users[cur_user]['name'] and call.data != 'name':
+        elif call.data == 'new' or call.data == 'name':
+            nxt = bot.send_message(call.message.chat.id, 'Как звать?')
+            bot.register_next_step_handler(nxt, get_name_ask_goal, call)
         else:
             nxt = bot.send_message(call.message.chat.id, 'Предлагаю ввести напоминание.')
             bot.register_next_step_handler(nxt, get_smth, call)
@@ -70,8 +67,8 @@ def query_processing(call):
             nxt = 'Данных пользователя нет в базе.\nНадо знакомиться и давить "Нет"...'
             bot.send_message(call.message.chat.id, nxt, reply_markup=keyboard)
         else:
-            user['name'] = users[cur_user]['name']
-            user['interval'] = set()
+            if not users[cur_user]['interval']:
+                users[cur_user]['interval'] = set()
             bot.delete_message(call.message.chat.id, call.message.id)
             keyboard = t.remind_changes(users, cur_user, weekdays_coeff)
             nxt = f'Инструкция:\nИмя/Стереть - заменить или стереть имя.\nНажатие любой кнопки с напоминанием, удалит ' \
@@ -91,7 +88,6 @@ def query_processing(call):
     elif call.data == 'delete_user':
         gaining_goal(call)
     elif tuple(call.data.split(',')) in users[cur_user]['interval']:
-        # bot.delete_message(call.message.chat.id, call.message.id)
         interval = []
         for destroy in users[cur_user]['interval']:
             if destroy != tuple(call.data.split(',')):
@@ -99,7 +95,7 @@ def query_processing(call):
         if len(interval) != 0:
             users[cur_user]['interval'] = set(interval)
         else:
-            users[cur_user]['interval'] = None
+            users[cur_user]['interval'] = set()
         print(users[cur_user]['interval'])
         gaining_goal(call)
     elif call.data in [x[0] for x in users[cur_user]['interval']]:
@@ -108,6 +104,9 @@ def query_processing(call):
         keyboard = t.weekdays()
         nxt = f'Настройка напоминания "{call.data}".\nНужно выбрать день.'
         bot.send_message(call.message.chat.id, nxt, reply_markup=keyboard)
+    elif call.data == 'del_name':
+        call.message.text = 'Я стер имя, но Телеграм знает больше...'
+        get_name_ask_goal(call.message, call)
     else:
         bot.send_message(call.message.chat.id, 'Что-то не так...Я не знаю что делать...')
 
@@ -120,7 +119,6 @@ def get_smth(msg, call):
     cur_msg = msg
     if call.data == 'new' or call.data == 'goal':
         call.data = 'remind_yes'
-        print(cur_msg)
         get_interval(call)
     else:
         nxt = 'Нет счастья в ветвлении ветвления...\nОбнуляю сессию...'
@@ -128,7 +126,8 @@ def get_smth(msg, call):
 
 
 def get_name_ask_goal(msg, call):
-    global user
+    global users
+    print(users)
     if users[cur_user]:
         users[cur_user]['name'] = msg.text
         keyboard = t.yes_no('Не сохранять.', 'old', 'interval_done', 'stop_bot')
@@ -137,8 +136,10 @@ def get_name_ask_goal(msg, call):
     elif msg.text == '/start':
         return send_welcome(msg)
     else:
-        user['name'] = msg.text
-        user['interval'] = set()
+        users[cur_user] = dict(zip(keys, [None] * len(keys)))
+        users[cur_user]['name'] = msg.text
+        if not users[cur_user]['interval']:
+            users[cur_user]['interval'] = set()
         nxt = bot.send_message(msg.chat.id, 'Ввод напоминания. Я жду...')
         bot.register_next_step_handler(nxt, get_smth, call)
 
@@ -177,12 +178,8 @@ def get_interval(call):
     elif call.data in time_check:
         interval.append(call.data)
         if len(interval) == 3:
-            if not users[cur_user]:
-                user['interval'].add(tuple(interval))
-                interval = [interval[0]]
-            else:
-                users[cur_user]['interval'].add(tuple(interval))
-                interval = [interval[0]]
+            users[cur_user]['interval'].add(tuple(interval))
+            interval = [interval[0]]
         bot.delete_message(call.message.chat.id, call.message.id)
         keyboard = t.yes_no('Старт', 'goal', 'remind_next', 'interval_done')
         nxt = f'Нужно жмакнуть:\nДа - закончить c "{interval[0]}" и ввести другое.\nНет - продолжить ' \
@@ -194,12 +191,10 @@ def get_interval(call):
 
 
 def default_statement(msg, txt):
-    global user
     global cur_user
     global cur_msg
     global interval
     bot.send_message(msg.chat.id, txt + '\n\nДля продолжения /start')
-    user = dict(zip(keys, [None] * len(keys)))
     cur_user = None
     cur_msg = None
     interval = []
@@ -208,17 +203,12 @@ def default_statement(msg, txt):
 def gaining_goal(call):
     global users
     global cur_user
-    global user
     bot.delete_message(call.message.chat.id, call.message.id)
     nxt = ''
     if cur_user == call.from_user.id:
         if call.data == 'delete_user':
-            user = dict.fromkeys(user, None)
             del users[cur_user]
             nxt = 'Все данные о пользователе удалены...'
-        elif not users[cur_user]:
-            users[cur_user] = user
-            user = dict.fromkeys(user, None)
         if not nxt:
             nxt = f'Сейчас в работе:\nИмя: {users[cur_user]["name"]}\n' \
                   f'Напоминания:'
