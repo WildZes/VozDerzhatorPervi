@@ -87,25 +87,27 @@ def query_processing(call):
         bot.send_message(call.message.chat.id, nxt, reply_markup=keyboard)
     elif call.data == 'delete_user':
         gaining_goal(call)
-    elif tuple(call.data.split(',')) in users[cur_user]['interval']:
+    elif call.data in [f'remind,{x[3]}' for x in users[cur_user]['interval']]:
         interval = []
         for destroy in users[cur_user]['interval']:
-            if destroy != tuple(call.data.split(',')):
+            if f'remind,{destroy[3]}' != call.data:
                 interval.append(destroy)
         if len(interval) != 0:
             users[cur_user]['interval'] = set(interval)
         else:
             users[cur_user]['interval'] = set()
-        print(users[cur_user]['interval'])
         gaining_goal(call)
-    elif call.data in [x[0] for x in users[cur_user]['interval']]:
-        interval = [call.data]
+    elif call.data in [f'goal,{i}' for i, _ in enumerate(sorted(set(users[cur_user]['interval'])))]:
+        remind = call.data.split(',')[1]
+        interval_list = set([x[0] for x in users[cur_user]['interval']])
+        remind = [x for i, x in enumerate(sorted(interval_list)) if str(i) == remind][0]
+        interval = [remind]
         bot.delete_message(call.message.chat.id, call.message.id)
         keyboard = t.weekdays()
-        nxt = f'Настройка напоминания "{call.data}".\nНужно выбрать день.'
+        nxt = f'Настройка напоминания "{remind}".\nНужно выбрать день.'
         bot.send_message(call.message.chat.id, nxt, reply_markup=keyboard)
     elif call.data == 'del_name':
-        call.message.text = 'Я стер имя, но Телеграм знает больше...'
+        call.message.text = 'Имя удалено пользователем'
         get_name_ask_goal(call.message, call)
     else:
         bot.send_message(call.message.chat.id, 'Что-то не так...Я не знаю что делать...')
@@ -178,6 +180,7 @@ def get_interval(call):
     elif call.data in time_check:
         interval.append(call.data)
         if len(interval) == 3:
+            interval.append(str(len(users[cur_user]['interval'])))
             users[cur_user]['interval'].add(tuple(interval))
             interval = [interval[0]]
         bot.delete_message(call.message.chat.id, call.message.id)
